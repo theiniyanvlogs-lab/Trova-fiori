@@ -1,12 +1,22 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
   <title>Trova Fiori</title>
+
+  <!-- ✅ Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Lora:wght@600;700&display=swap" rel="stylesheet">
+
+  <!-- ✅ Fonts -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Lora:wght@600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- ✅ Custom Styles -->
   <style>
     body {
       font-family: 'Plus Jakarta Sans', sans-serif;
@@ -16,20 +26,15 @@
       font-family: 'Lora', serif;
     }
   </style>
-<script type="importmap">
-{
-  "imports": {
-    "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
+
+  <!-- ✅ Local CSS -->
+  <link rel="stylesheet" href="/index.css" />
 </head>
+
 <body class="bg-stone-50 text-stone-900">
   <div id="root"></div>
-<script type="module" src="/index.tsx"></script>
+
+  <!-- ✅ FIXED ENTRY POINT -->
+  <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>
