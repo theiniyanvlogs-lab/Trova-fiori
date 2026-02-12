@@ -1,11 +1,11 @@
+// src/services/gemini.ts
+
 import { FlowerDetails } from "../types";
 
-/* ✅ Grok API Key from Vercel Environment */
+/* ✅ Grok API Key */
 const API_KEY = import.meta.env.VITE_GROK_API_KEY;
 
-/* ---------------------------------------------------
-   ✅ Helper Function: Clean JSON Output
---------------------------------------------------- */
+/* ✅ Helper: Extract Clean JSON */
 function extractJson(rawText: string) {
   const cleaned = rawText
     .replace(/```json/gi, "")
@@ -16,15 +16,9 @@ function extractJson(rawText: string) {
 }
 
 /* ---------------------------------------------------
-   ✅ 1. Identify Flower (Grok Vision Model)
+   ✅ 1. Identify Flower (Vision Model)
 --------------------------------------------------- */
-export async function identifyFlower(
-  imageBase64: string
-): Promise<FlowerDetails> {
-  if (!API_KEY) {
-    throw new Error("Missing Grok API Key in Environment Variables");
-  }
-
+export async function identifyFlower(imageUrl: string): Promise<FlowerDetails> {
   try {
     const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
@@ -44,7 +38,7 @@ export async function identifyFlower(
                 text: `
 You are a flower identification expert.
 
-Identify the flower in this image and return ONLY valid JSON:
+Identify this flower and return ONLY valid JSON:
 
 {
   "commonName": "",
@@ -59,15 +53,15 @@ Identify the flower in this image and return ONLY valid JSON:
 }
 
 STRICT RULES:
-- Output ONLY JSON
+- ONLY JSON output
 - No markdown
-- No extra explanation
+- No extra text
                 `,
               },
               {
                 type: "image_url",
                 image_url: {
-                  url: imageBase64,
+                  url: imageUrl, // ✅ Public Cloudinary URL
                 },
               },
             ],
@@ -78,29 +72,25 @@ STRICT RULES:
 
     const data = await response.json();
 
+    console.log("✅ Grok Vision Response:", data);
+
     const text = data?.choices?.[0]?.message?.content;
 
     if (!text) {
-      throw new Error("No response from Grok Vision API");
+      throw new Error("❌ No response from Grok Vision API");
     }
 
     return extractJson(text);
   } catch (error) {
-    console.error("❌ Grok Vision Error:", error);
-    throw new Error("We couldn't identify this flower.");
+    console.error("❌ Identify Flower Error:", error);
+    throw new Error("No response from Grok AI.");
   }
 }
 
 /* ---------------------------------------------------
-   ✅ 2. Translate Flower Details into Tamil
+   ✅ 2. Translate Details to Tamil (Text Model)
 --------------------------------------------------- */
-export async function translateDetailsToTamil(
-  details: FlowerDetails
-): Promise<any> {
-  if (!API_KEY) {
-    throw new Error("Missing Grok API Key in Environment Variables");
-  }
-
+export async function translateDetailsToTamil(details: FlowerDetails) {
   try {
     const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
@@ -115,7 +105,7 @@ export async function translateDetailsToTamil(
           {
             role: "user",
             content: `
-Translate the following flower details into Tamil.
+Translate the flower details below into Tamil.
 
 Return ONLY valid JSON:
 
@@ -145,15 +135,17 @@ ${JSON.stringify(details)}
 
     const data = await response.json();
 
+    console.log("✅ Tamil Translate Response:", data);
+
     const text = data?.choices?.[0]?.message?.content;
 
     if (!text) {
-      throw new Error("No translation response from Grok API");
+      throw new Error("❌ No translation response from Grok API");
     }
 
     return extractJson(text);
   } catch (error) {
-    console.error("❌ Tamil Translation Error:", error);
+    console.error("❌ Tamil Translate Error:", error);
     throw new Error("Tamil translation failed.");
   }
 }
