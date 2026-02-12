@@ -4,28 +4,43 @@ import { FlowerDetails } from "../types";
 const API_KEY = import.meta.env.VITE_GROK_API_KEY;
 
 /* ---------------------------------------------------
+   ✅ Helper Function: Extract Clean JSON
+--------------------------------------------------- */
+function extractJson(rawText: string) {
+  const cleaned = rawText
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  return JSON.parse(cleaned);
+}
+
+/* ---------------------------------------------------
    ✅ 1. Identify Flower (Vision Model)
 --------------------------------------------------- */
 export async function identifyFlower(
   imageBase64: string
 ): Promise<FlowerDetails> {
-  const response = await fetch("https://api.x.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${API_KEY}`,
-    },
+  try {
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${API_KEY}`,
+      },
 
-    body: JSON.stringify({
-      model: "grok-vision-beta",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `
-Identify this flower and return details ONLY in valid JSON format:
+      body: JSON.stringify({
+        model: "grok-vision-beta",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `
+You are a flower identification expert.
+
+Identify the flower in this image and return ONLY valid JSON:
 
 {
   "commonName": "",
@@ -38,50 +53,63 @@ Identify this flower and return details ONLY in valid JSON format:
   "flowerType": "",
   "funFact": ""
 }
-              `,
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: imageBase64,
+
+STRICT RULES:
+- Return ONLY JSON
+- No explanation
+- No markdown
+                `,
               },
-            },
-          ],
-        },
-      ],
-    }),
-  });
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageBase64,
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    });
 
-  const data = await response.json();
+    const data = await response.json();
 
-  const text = data.choices?.[0]?.message?.content;
+    console.log("✅ Grok Vision Full Response:", data);
 
-  if (!text) {
-    throw new Error("No response from Grok Vision API");
+    const text = data?.choices?.[0]?.message?.content;
+
+    if (!text) {
+      throw new Error("❌ No response text from Grok Vision API");
+    }
+
+    return extractJson(text);
+  } catch (error) {
+    console.error("❌ Grok Vision Error:", error);
+    throw new Error("No response from Grok AI.");
   }
-
-  return JSON.parse(text);
 }
 
 /* ---------------------------------------------------
-   ✅ 2. Translate Details to Tamil (Text Model)
+   ✅ 2. Translate Flower Details into Tamil
 --------------------------------------------------- */
 export async function translateDetailsToTamil(details: FlowerDetails) {
-  const response = await fetch("https://api.x.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${API_KEY}`,
-    },
+  try {
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${API_KEY}`,
+      },
 
-    body: JSON.stringify({
-      model: "grok-beta",
-      messages: [
-        {
-          role: "user",
-          content: `
-Translate the following flower details into Tamil.
-Return ONLY valid JSON in this format:
+      body: JSON.stringify({
+        model: "grok-beta",
+        messages: [
+          {
+            role: "user",
+            content: `
+Translate the flower details below into Tamil.
+
+Return ONLY valid JSON:
 
 {
   "commonName": "",
@@ -94,21 +122,32 @@ Return ONLY valid JSON in this format:
   "funFact": ""
 }
 
+STRICT RULES:
+- ONLY JSON output
+- No markdown
+- No extra text
+
 Flower Data:
 ${JSON.stringify(details)}
-          `,
-        },
-      ],
-    }),
-  });
+            `,
+          },
+        ],
+      }),
+    });
 
-  const data = await response.json();
+    const data = await response.json();
 
-  const text = data.choices?.[0]?.message?.content;
+    console.log("✅ Grok Tamil Translate Response:", data);
 
-  if (!text) {
-    throw new Error("No translation response from Grok API");
+    const text = data?.choices?.[0]?.message?.content;
+
+    if (!text) {
+      throw new Error("❌ No translation response from Grok API");
+    }
+
+    return extractJson(text);
+  } catch (error) {
+    console.error("❌ Tamil Translate Error:", error);
+    throw new Error("Tamil translation failed.");
   }
-
-  return JSON.parse(text);
 }
