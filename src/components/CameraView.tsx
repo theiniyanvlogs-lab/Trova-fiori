@@ -1,120 +1,139 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-export default function CameraView() {
+interface CameraViewProps {
+  onCapture: (imageData: string) => void;
+  onClose: () => void;
+}
+
+const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [cameraOn, setCameraOn] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState("");
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // ✅ Start Camera
-  async function startCamera() {
+  const [cameraOn, setCameraOn] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  // ✅ Start Camera on Load
+  useEffect(() => {
+    startCamera();
+
+    // ✅ Cleanup when closing component
+    return () => stopCamera();
+  }, []);
+
+  // ✅ Start Camera Function
+  const startCamera = async () => {
     try {
+      setLoading(true);
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: {
+          facingMode: "environment",
+        },
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        setCameraOn(true);
+
+        // ✅ iPhone Fix: Wait for video metadata
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play();
+          setCameraOn(true);
+          setLoading(false);
+        };
       }
     } catch (err) {
-      alert("Camera access denied or not supported.");
+      console.error("Camera Error:", err);
+      setError("❌ Camera access denied or not supported on this device.");
+      setLoading(false);
     }
-  }
+  };
 
-  // ✅ Capture Image + Send to Grok API
-  async function captureFlower() {
-    if (!videoRef.current) return;
+  // ✅ Stop Camera Function
+  const stopCamera = () => {
+    const stream = videoRef.current?.srcObject as MediaStream;
 
-    setLoading(true);
-    setResult("");
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
 
-    // Create Canvas
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
+    setCameraOn(false);
+  };
+
+  // ✅ Capture Photo Function
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
     const ctx = canvas.getContext("2d");
-    ctx?.drawImage(videoRef.current, 0, 0);
+    if (!ctx) return;
 
-    // Convert to Base64
-    const imageBase64 = canvas.toDataURL("image/jpeg");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    try {
-      // Send to API Route
-      const res = await fetch("/api/identify", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ imageBase64 }),
-      });
+    // ✅ Convert to Base64 Image
+    const imageData = canvas.toDataURL("image/jpeg");
 
-      const data = await res.json();
+    // ✅ Stop Camera after Capture
+    stopCamera();
 
-      if (data.result) {
-        setResult(data.result);
-      } else {
-        setResult("❌ No response from Grok AI.");
-      }
-    } catch (error) {
-      setResult("❌ Error connecting to Grok API.");
-    }
-
-    setLoading(false);
-  }
+    // ✅ Send Image to App.tsx
+    onCapture(imageData);
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center p-4">
-      {/* Title */}
-      <h1 className="text-2xl font-bold text-green-700 mb-2">
-        🌸 Trova Fiori
-      </h1>
-      <p className="text-gray-500 mb-6">Flower Identifier Assistant</p>
+    <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-4">
 
-      {/* Camera Preview */}
+      {/* ❌ Close Button */}
+      <button
+        onClick={() => {
+          stopCamera();
+          onClose();
+        }}
+        className="absolute top-5 left-5 bg-white/20 hover:bg-white/40 text-white px-4 py-2 rounded-full font-bold"
+      >
+        ✖ Close
+      </button>
+
+      {/* ✅ Loading */}
+      {loading && (
+        <p className="text-white text-lg font-bold mb-4 animate-pulse">
+          📷 Opening Camera...
+        </p>
+      )}
+
+      {/* ❌ Error Message */}
+      {error && (
+        <p className="text-red-400 font-bold mb-4 text-center">{error}</p>
+      )}
+
+      {/* ✅ Camera Video */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
-        className="rounded-xl shadow-md w-full max-w-sm mb-4"
+        muted
+        className="rounded-3xl shadow-2xl w-full max-w-md border-4 border-white/10"
       />
 
-      {/* Buttons */}
-      {!cameraOn ? (
-        <button
-          onClick={startCamera}
-          className="bg-green-600 text-white px-6 py-3 rounded-full text-lg font-semibold"
-        >
-          📷 Open Camera
-        </button>
-      ) : (
-        <button
-          onClick={captureFlower}
-          className="bg-blue-600 text-white px-6 py-3 rounded-full text-lg font-semibold"
-        >
-          🌸 Capture & Identify
-        </button>
-      )}
+      {/* Hidden Canvas */}
+      <canvas ref={canvasRef} className="hidden" />
 
-      {/* Loading */}
-      {loading && (
-        <p className="mt-4 text-orange-600 font-semibold">
-          Identifying flower... please wait 🌼
-        </p>
-      )}
-
-      {/* Result Output */}
-      {result && (
-        <div className="mt-6 p-4 bg-white rounded-xl shadow-md w-full max-w-lg">
-          <h2 className="text-lg font-bold mb-2 text-green-700">
-            Flower Details
-          </h2>
-          <pre className="whitespace-pre-wrap text-gray-800 text-sm">
-            {result}
-          </pre>
-        </div>
+      {/* ✅ Capture Button */}
+      {cameraOn && (
+        <button
+          onClick={capturePhoto}
+          className="mt-8 bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all text-white px-10 py-4 rounded-full font-bold text-lg shadow-2xl flex items-center gap-2"
+        >
+          📸 Capture & Identify Flower
+        </button>
       )}
     </div>
   );
-}
+};
+
+export default CameraView;
