@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { AppState, IdentificationRecord, FlowerDetails } from './types';
 import CameraView from './components/CameraView';
