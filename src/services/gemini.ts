@@ -4,15 +4,30 @@ import { FlowerDetails } from "../types";
 const API_KEY = import.meta.env.VITE_GROK_API_KEY;
 
 /* ---------------------------------------------------
-   ✅ Helper Function: Extract Clean JSON
+   ✅ Helper: Clean + Extract JSON Safely
 --------------------------------------------------- */
 function extractJson(rawText: string) {
-  const cleaned = rawText
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
+  try {
+    const cleaned = rawText
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
 
-  return JSON.parse(cleaned);
+    return JSON.parse(cleaned);
+  } catch (err) {
+    console.error("❌ JSON Parse Failed:", rawText);
+    throw new Error("Invalid JSON returned by Grok AI.");
+  }
+}
+
+/* ---------------------------------------------------
+   ✅ Helper: Ensure Proper Base64 Image Format
+--------------------------------------------------- */
+function formatBase64Image(imageBase64: string) {
+  if (imageBase64.startsWith("data:image")) {
+    return imageBase64;
+  }
+  return `data:image/jpeg;base64,${imageBase64}`;
 }
 
 /* ---------------------------------------------------
@@ -31,6 +46,10 @@ export async function identifyFlower(
 
       body: JSON.stringify({
         model: "grok-vision-beta",
+
+        /* ✅ Force JSON Output */
+        response_format: { type: "json_object" },
+
         messages: [
           {
             role: "user",
@@ -56,14 +75,14 @@ Identify the flower in this image and return ONLY valid JSON:
 
 STRICT RULES:
 - Return ONLY JSON
-- No explanation
 - No markdown
+- No explanation
                 `,
               },
               {
                 type: "image_url",
                 image_url: {
-                  url: imageBase64,
+                  url: formatBase64Image(imageBase64),
                 },
               },
             ],
@@ -79,7 +98,7 @@ STRICT RULES:
     const text = data?.choices?.[0]?.message?.content;
 
     if (!text) {
-      throw new Error("❌ No response text from Grok Vision API");
+      throw new Error("❌ No response from Grok Vision API");
     }
 
     return extractJson(text);
@@ -103,6 +122,10 @@ export async function translateDetailsToTamil(details: FlowerDetails) {
 
       body: JSON.stringify({
         model: "grok-beta",
+
+        /* ✅ Force JSON Output */
+        response_format: { type: "json_object" },
+
         messages: [
           {
             role: "user",
