@@ -1,0 +1,8 @@
+
+{
+  "name": "Trova Fiori",
+  "description": "An intelligent gardening assistant that identifies flowers in real-time via camera and provides detailed care information.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
