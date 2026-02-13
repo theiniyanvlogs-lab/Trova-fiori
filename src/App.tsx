@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { AppState, IdentificationRecord } from "./types";
+
 import CameraView from "./components/CameraView";
 import FlowerInfoOverlay from "./components/FlowerInfoOverlay";
 import HistoryView from "./components/HistoryView";
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppState>(AppState.HOME);
+
   const [history, setHistory] = useState<IdentificationRecord[]>([]);
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* ✅ Load history */
+  /* ✅ Load History from LocalStorage */
   useEffect(() => {
     const saved = localStorage.getItem("flower_history");
     if (saved) {
@@ -24,21 +26,23 @@ const App: React.FC = () => {
     }
   }, []);
 
-  /* ✅ Save history */
+  /* ✅ Save History */
   useEffect(() => {
     localStorage.setItem("flower_history", JSON.stringify(history));
   }, [history]);
 
-  /* ✅ NEW Capture Handler (Uses API Identify Route) */
+  /* ✅ FINAL Capture Handler (Cloudinary + Grok API) */
   const handleCapture = async (base64Image: string) => {
     setIsProcessing(true);
     setError(null);
 
     try {
-      // ✅ Call backend API (Cloudinary + Grok)
+      // ✅ Call backend API route
       const res = await fetch("/api/identify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           imageBase64: base64Image,
         }),
@@ -46,36 +50,44 @@ const App: React.FC = () => {
 
       const data = await res.json();
 
-      if (!data.result) throw new Error("No response");
+      if (!data.result) {
+        throw new Error("No response from Grok API");
+      }
 
-      // ✅ Create new history record
+      // ✅ Save Record in History
       const newRecord: IdentificationRecord = {
         id: Date.now().toString(),
         timestamp: Date.now(),
-        imageData: data.uploadedImage, // Cloudinary URL
+
+        // Cloudinary image URL
+        imageData: data.uploadedImage,
+
+        // Grok result stored inside description
         details: {
-          description: data.result, // Store Grok response
+          description: data.result,
         } as any,
       };
 
       setHistory((prev) => [newRecord, ...prev]);
       setActiveRecordId(newRecord.id);
+
+      // ✅ Open Result Overlay
       setCurrentView(AppState.RESULT);
     } catch (err) {
       console.log(err);
-      setError("❌ Flower identification failed. Try again.");
+      setError("❌ Flower identification failed. Please try again.");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  /* ✅ Delete Record */
+  /* ✅ Delete Single Record */
   const handleDeleteRecord = (id: string) => {
     setHistory((prev) => prev.filter((item) => item.id !== id));
     if (activeRecordId === id) setActiveRecordId(null);
   };
 
-  /* ✅ Clear History */
+  /* ✅ Clear All History */
   const clearHistory = () => {
     if (window.confirm("Delete all identification history?")) {
       setHistory([]);
@@ -83,21 +95,23 @@ const App: React.FC = () => {
     }
   };
 
+  /* ✅ Active Record */
   const activeRecord = history.find((r) => r.id === activeRecordId);
 
   return (
     <div className="min-h-screen flex flex-col max-w-lg mx-auto bg-stone-50 border-x border-stone-200 shadow-2xl relative">
-      {/* Header */}
+      {/* ✅ HEADER */}
       <header className="p-6 bg-white border-b border-stone-100 flex justify-between items-center sticky top-0 z-40">
         <div>
           <h1 className="text-2xl font-black text-stone-800 tracking-tight">
             🌸 Trova Fiori
           </h1>
           <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mt-1">
-            Flower Identifier AI
+            Cloudinary + Grok Flower Identifier
           </p>
         </div>
 
+        {/* Clear History Button */}
         {history.length > 0 && (
           <button
             onClick={clearHistory}
@@ -109,7 +123,7 @@ const App: React.FC = () => {
         )}
       </header>
 
-      {/* History */}
+      {/* ✅ HISTORY LIST */}
       <main className="flex-1 pb-24 overflow-y-auto px-6 pt-8">
         <HistoryView
           records={history}
@@ -121,7 +135,7 @@ const App: React.FC = () => {
         />
       </main>
 
-      {/* Processing Overlay */}
+      {/* ✅ PROCESSING OVERLAY */}
       {isProcessing && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
           <div className="bg-white p-6 rounded-3xl shadow-xl text-center">
@@ -131,14 +145,14 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Error Toast */}
+      {/* ✅ ERROR TOAST */}
       {error && (
         <div className="fixed bottom-24 left-6 right-6 bg-red-500 text-white p-4 rounded-2xl shadow-xl z-[90]">
           {error}
         </div>
       )}
 
-      {/* Identify Button */}
+      {/* ✅ IDENTIFY BUTTON */}
       <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-40">
         <button
           onClick={() => setCurrentView(AppState.CAMERA)}
@@ -148,7 +162,7 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      {/* Camera Overlay */}
+      {/* ✅ CAMERA OVERLAY */}
       {currentView === AppState.CAMERA && (
         <CameraView
           onCapture={handleCapture}
@@ -156,7 +170,7 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Result Overlay */}
+      {/* ✅ RESULT OVERLAY */}
       {currentView === AppState.RESULT && activeRecord && (
         <FlowerInfoOverlay
           details={activeRecord.details}
