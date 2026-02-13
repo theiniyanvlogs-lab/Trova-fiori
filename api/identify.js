@@ -7,28 +7,32 @@ cloudinary.config({
 });
 
 export default async function handler(req, res) {
+  // ✅ Allow only POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Only POST allowed" });
   }
 
   try {
-    const { imageBase64 } = req.body;
+    // ✅ Fix: Ensure body is parsed properly
+    const body =
+      typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+
+    const { imageBase64 } = body;
 
     if (!imageBase64) {
-      return res.status(400).json({ error: "No image received" });
+      return res.status(400).json({ error: "No image provided" });
     }
 
-    // ✅ Upload Image to Cloudinary
+    // ✅ Step 1: Upload to Cloudinary
     const uploadResult = await cloudinary.uploader.upload(imageBase64, {
       folder: "flowers",
     });
 
     const imageUrl = uploadResult.secure_url;
-
     console.log("✅ Uploaded:", imageUrl);
 
-    // ✅ Call Grok Vision API
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    // ✅ Step 2: Send to Grok Vision
+    const grokRes = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.GROK_API_KEY}`,
@@ -42,13 +46,25 @@ export default async function handler(req, res) {
             content: [
               {
                 type: "text",
-                text: "Identify this flower clearly.",
+                text: `Identify this flower and respond ONLY in this format:
+
+Flower Name:
+Tamil Name:
+Scientific Name:
+
+English Description:
+Tamil Description:
+
+Sun Requirement:
+Soil Needs:
+Bloom Time:
+
+Did You Know Fact:
+`,
               },
               {
                 type: "image_url",
-                image_url: {
-                  url: imageUrl,
-                },
+                image_url: { url: imageUrl },
               },
             ],
           },
@@ -56,17 +72,20 @@ export default async function handler(req, res) {
       }),
     });
 
-    const data = await response.json();
+    const data = await grokRes.json();
 
+    if (!data.choices) {
+      console.log("❌ Grok Error Response:", data);
+      return res.status(500).json({ error: "Grok API failed" });
+    }
+
+    // ✅ Step 3: Return Result
     return res.status(200).json({
       uploadedImage: imageUrl,
-      result: data?.choices?.[0]?.message?.content || "No result returned",
+      result: data.choices[0].message.content,
     });
   } catch (err) {
     console.error("❌ Identify API Error:", err);
-
-    return res.status(500).json({
-      error: err.message || "Something went wrong",
-    });
+    return res.status(500).json({ error: err.message });
   }
 }
