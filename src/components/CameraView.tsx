@@ -20,19 +20,29 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
     return () => stopCamera();
   }, []);
 
-  /* ✅ Start Camera */
+  /* ✅ Start Camera (Mobile Safe) */
   const startCamera = async () => {
     try {
+      setError("");
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: {
+          facingMode: { ideal: "environment" },
+        },
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        setCameraOn(true);
+
+        // ✅ Wait for video metadata before playing
+        videoRef.current.onloadedmetadata = async () => {
+          await videoRef.current?.play();
+          setCameraOn(true);
+        };
       }
-    } catch {
-      setError("❌ Camera access denied or not supported.");
+    } catch (err) {
+      console.log(err);
+      setError("❌ Camera not supported or permission denied.");
     }
   };
 
@@ -42,36 +52,46 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
     stream?.getTracks().forEach((track) => track.stop());
   };
 
-  /* ✅ Capture + Upload + Identify */
+  /* ✅ Capture + Upload + Identify (Fixed) */
   const capturePhoto = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
     setLoading(true);
+    setError("");
 
     try {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
+      // ✅ Ensure video is ready
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        throw new Error("Camera not ready yet");
+      }
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
       const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      if (!ctx) throw new Error("Canvas error");
 
+      // ✅ Draw image frame
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // ✅ Convert to Base64
-      const base64 = canvas.toDataURL("image/jpeg");
+      // ✅ Convert to Base64 (Better Quality + Smaller Size)
+      const base64 = canvas.toDataURL("image/jpeg", 0.8);
 
+      // ✅ Stop camera after capture
       stopCamera();
 
       // ✅ Upload to Cloudinary
       const imageUrl = await uploadToCloudinary(base64);
 
-      // ✅ Send URL to App.tsx
+      // ✅ Return uploaded image URL
       onCapture(imageUrl);
     } catch (err) {
-      setError("❌ Capture failed. Try again.");
+      console.log(err);
+      setError("❌ Capture failed. Please try again slowly.");
+      startCamera(); // ✅ Restart camera automatically
     } finally {
       setLoading(false);
     }
@@ -81,13 +101,16 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
     <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-4">
       {/* Close Button */}
       <button
-        onClick={onClose}
+        onClick={() => {
+          stopCamera();
+          onClose();
+        }}
         className="absolute top-5 left-5 text-white text-xl"
       >
         ✖
       </button>
 
-      {/* Error */}
+      {/* Error Message */}
       {error && (
         <p className="text-red-400 font-bold mb-4 text-center">{error}</p>
       )}
@@ -97,6 +120,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
         ref={videoRef}
         autoPlay
         playsInline
+        muted
         className="rounded-2xl shadow-xl w-full max-w-md"
       />
 
