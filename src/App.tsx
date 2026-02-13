@@ -14,7 +14,7 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* ✅ Load History from LocalStorage */
+  /* ✅ Load History */
   useEffect(() => {
     const saved = localStorage.getItem("flower_history");
     if (saved) {
@@ -31,13 +31,13 @@ const App: React.FC = () => {
     localStorage.setItem("flower_history", JSON.stringify(history));
   }, [history]);
 
-  /* ✅ FINAL Capture Handler (Cloudinary + Grok API) */
+  /* ✅ Capture Handler (Cloudinary + Grok Vision API) */
   const handleCapture = async (base64Image: string) => {
     setIsProcessing(true);
     setError(null);
 
     try {
-      // ✅ Call backend API route
+      /* ✅ Call Identify API */
       const res = await fetch("/api/identify", {
         method: "POST",
         headers: {
@@ -54,24 +54,35 @@ const App: React.FC = () => {
         throw new Error("No response from Grok API");
       }
 
-      // ✅ Save Record in History
+      /* ✅ Build Full Details Object (Overlay Safe) */
       const newRecord: IdentificationRecord = {
         id: Date.now().toString(),
         timestamp: Date.now(),
 
-        // Cloudinary image URL
+        // Cloudinary Image URL
         imageData: data.uploadedImage,
 
-        // Grok result stored inside description
+        // Full FlowerDetails Structure
         details: {
+          commonName: "🌸 Identified Flower",
+          scientificName: "—",
           description: data.result,
+
+          sun: "—",
+          soilNeeds: "—",
+          bloomsIn: "—",
+          funFact: "—",
+
+          naturalHabitat: "—",
+          flowerType: "—",
         } as any,
       };
 
+      /* ✅ Save to History */
       setHistory((prev) => [newRecord, ...prev]);
       setActiveRecordId(newRecord.id);
 
-      // ✅ Open Result Overlay
+      /* ✅ Open Result */
       setCurrentView(AppState.RESULT);
     } catch (err) {
       console.log(err);
@@ -81,13 +92,13 @@ const App: React.FC = () => {
     }
   };
 
-  /* ✅ Delete Single Record */
+  /* ✅ Delete Record */
   const handleDeleteRecord = (id: string) => {
     setHistory((prev) => prev.filter((item) => item.id !== id));
     if (activeRecordId === id) setActiveRecordId(null);
   };
 
-  /* ✅ Clear All History */
+  /* ✅ Clear History */
   const clearHistory = () => {
     if (window.confirm("Delete all identification history?")) {
       setHistory([]);
@@ -111,7 +122,7 @@ const App: React.FC = () => {
           </p>
         </div>
 
-        {/* Clear History Button */}
+        {/* 🗑 Clear Button */}
         {history.length > 0 && (
           <button
             onClick={clearHistory}
@@ -123,7 +134,7 @@ const App: React.FC = () => {
         )}
       </header>
 
-      {/* ✅ HISTORY LIST */}
+      {/* ✅ HISTORY */}
       <main className="flex-1 pb-24 overflow-y-auto px-6 pt-8">
         <HistoryView
           records={history}
@@ -135,7 +146,7 @@ const App: React.FC = () => {
         />
       </main>
 
-      {/* ✅ PROCESSING OVERLAY */}
+      {/* ✅ Processing Overlay */}
       {isProcessing && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
           <div className="bg-white p-6 rounded-3xl shadow-xl text-center">
@@ -145,14 +156,14 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ ERROR TOAST */}
+      {/* ✅ Error Toast */}
       {error && (
         <div className="fixed bottom-24 left-6 right-6 bg-red-500 text-white p-4 rounded-2xl shadow-xl z-[90]">
           {error}
         </div>
       )}
 
-      {/* ✅ IDENTIFY BUTTON */}
+      {/* ✅ Identify Button */}
       <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-40">
         <button
           onClick={() => setCurrentView(AppState.CAMERA)}
@@ -162,7 +173,7 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      {/* ✅ CAMERA OVERLAY */}
+      {/* ✅ Camera Overlay */}
       {currentView === AppState.CAMERA && (
         <CameraView
           onCapture={handleCapture}
@@ -170,7 +181,7 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* ✅ RESULT OVERLAY */}
+      {/* ✅ Result Overlay */}
       {currentView === AppState.RESULT && activeRecord && (
         <FlowerInfoOverlay
           details={activeRecord.details}
