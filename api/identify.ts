@@ -1,40 +1,33 @@
-import type { NextApiRequest, NextApiResponse } from "next";
 import { v2 as cloudinary } from "cloudinary";
 
-/* ✅ Cloudinary Config */
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  /* ✅ Only Allow POST */
+export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Only POST allowed" });
   }
 
   try {
     const { imageBase64 } = req.body;
 
-    /* ✅ Validate Image */
     if (!imageBase64) {
-      return res.status(400).json({ error: "No image provided" });
+      return res.status(400).json({ error: "No image received" });
     }
 
-    /* ✅ Step 1: Upload Image to Cloudinary */
+    // ✅ Upload to Cloudinary
     const uploadResult = await cloudinary.uploader.upload(imageBase64, {
       folder: "flowers",
     });
 
     const imageUrl = uploadResult.secure_url;
 
-    console.log("✅ Uploaded to Cloudinary:", imageUrl);
+    console.log("✅ Uploaded:", imageUrl);
 
-    /* ✅ Step 2: Call Grok Vision API */
+    // ✅ Call Grok Vision
     const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -47,27 +40,7 @@ export default async function handler(
           {
             role: "user",
             content: [
-              {
-                type: "text",
-                text: `
-Identify this flower from the image.
-
-Return response in this format:
-
-Flower Name:
-Tamil Name:
-Scientific Name:
-
-English Description:
-Tamil Description:
-
-Sun Requirement:
-Soil Needs:
-Bloom Time:
-
-Did You Know Fact:
-`,
-              },
+              { type: "text", text: "Identify this flower." },
               {
                 type: "image_url",
                 image_url: { url: imageUrl },
@@ -78,34 +51,14 @@ Did You Know Fact:
       }),
     });
 
-    /* ✅ Handle Grok API Errors */
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("❌ Grok API Error:", errText);
-
-      return res.status(500).json({
-        error: "Grok API request failed",
-        details: errText,
-      });
-    }
-
     const data = await response.json();
 
-    /* ✅ Safe Result Extraction */
-    const result =
-      data?.choices?.[0]?.message?.content || "No flower identified.";
-
-    /* ✅ Step 3: Send Back Response */
     return res.status(200).json({
       uploadedImage: imageUrl,
-      result,
+      result: data?.choices?.[0]?.message?.content || "No result",
     });
-  } catch (err: any) {
-    console.error("❌ Identify API Error:", err);
-
-    return res.status(500).json({
-      error: "Server failed",
-      message: err.message,
-    });
+  } catch (err) {
+    console.error("❌ API Error:", err);
+    return res.status(500).json({ error: err.message });
   }
 }
