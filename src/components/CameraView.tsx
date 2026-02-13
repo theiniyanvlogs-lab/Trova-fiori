@@ -20,21 +20,18 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
     return () => stopCamera();
   }, []);
 
-  /* ✅ Start Camera (Mobile Safe) */
+  /* ✅ Start Camera */
   const startCamera = async () => {
     try {
       setError("");
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-        },
+        video: { facingMode: { ideal: "environment" } },
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
 
-        // ✅ Wait for video metadata before playing
         videoRef.current.onloadedmetadata = async () => {
           await videoRef.current?.play();
           setCameraOn(true);
@@ -52,18 +49,30 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
     stream?.getTracks().forEach((track) => track.stop());
   };
 
-  /* ✅ Capture + Upload + Identify (Fixed) */
-  const capturePhoto = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
+  /* ✅ Upload Base64 to Cloudinary */
+  const handleUpload = async (base64: string) => {
     setLoading(true);
     setError("");
+
+    try {
+      const imageUrl = await uploadToCloudinary(base64);
+      onCapture(imageUrl);
+    } catch (err) {
+      console.log(err);
+      setError("❌ Upload failed. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ✅ Capture Photo from Camera */
+  const capturePhoto = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
 
     try {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      // ✅ Ensure video is ready
       if (video.videoWidth === 0 || video.videoHeight === 0) {
         throw new Error("Camera not ready yet");
       }
@@ -74,32 +83,41 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Canvas error");
 
-      // ✅ Draw image frame
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // ✅ Convert to Base64 (Better Quality + Smaller Size)
       const base64 = canvas.toDataURL("image/jpeg", 0.8);
 
-      // ✅ Stop camera after capture
       stopCamera();
 
-      // ✅ Upload to Cloudinary
-      const imageUrl = await uploadToCloudinary(base64);
-
-      // ✅ Return uploaded image URL
-      onCapture(imageUrl);
+      await handleUpload(base64);
     } catch (err) {
       console.log(err);
       setError("❌ Capture failed. Please try again slowly.");
-      startCamera(); // ✅ Restart camera automatically
-    } finally {
-      setLoading(false);
+      startCamera();
     }
+  };
+
+  /* ✅ Upload from Gallery */
+  const handleGalleryUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    stopCamera();
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+      await handleUpload(base64);
+    };
+
+    reader.readAsDataURL(file);
   };
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-4">
-      {/* Close Button */}
+      {/* ❌ Close Button */}
       <button
         onClick={() => {
           stopCamera();
@@ -126,16 +144,30 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
 
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Capture Button */}
-      {cameraOn && (
-        <button
-          onClick={capturePhoto}
-          disabled={loading}
-          className="mt-6 bg-emerald-600 text-white px-8 py-4 rounded-full font-bold text-lg shadow-xl"
-        >
-          {loading ? "Uploading..." : "📸 Capture & Identify"}
-        </button>
-      )}
+      {/* Buttons */}
+      <div className="flex flex-col gap-4 mt-6 w-full max-w-md">
+        {/* 📸 Capture Button */}
+        {cameraOn && (
+          <button
+            onClick={capturePhoto}
+            disabled={loading}
+            className="bg-emerald-600 text-white px-8 py-4 rounded-full font-bold text-lg shadow-xl"
+          >
+            {loading ? "Uploading..." : "📸 Capture & Identify"}
+          </button>
+        )}
+
+        {/* 🖼 Upload from Gallery */}
+        <label className="bg-blue-600 text-white px-8 py-4 rounded-full font-bold text-lg shadow-xl text-center cursor-pointer">
+          {loading ? "Please wait..." : "🖼 Upload from Gallery"}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleGalleryUpload}
+            className="hidden"
+          />
+        </label>
+      </div>
     </div>
   );
 };
