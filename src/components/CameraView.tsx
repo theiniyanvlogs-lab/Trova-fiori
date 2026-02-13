@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { uploadToCloudinary } from "../services/upload";
 
 interface CameraViewProps {
-  onCapture: (imageUrl: string) => void;
+  onCapture: (base64Image: string) => void;
   onClose: () => void;
 }
 
@@ -12,7 +11,6 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
 
   const [cameraOn, setCameraOn] = useState(false);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
 
   /* ✅ Start Camera Automatically */
   useEffect(() => {
@@ -49,23 +47,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
     stream?.getTracks().forEach((track) => track.stop());
   };
 
-  /* ✅ Upload Base64 to Cloudinary */
-  const handleUpload = async (base64: string) => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const imageUrl = await uploadToCloudinary(base64);
-      onCapture(imageUrl);
-    } catch (err) {
-      console.log(err);
-      setError("❌ Upload failed. Try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* ✅ Capture Photo from Camera */
+  /* ✅ Capture Photo */
   const capturePhoto = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
@@ -73,43 +55,47 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      if (video.videoWidth === 0 || video.videoHeight === 0) {
-        throw new Error("Camera not ready yet");
-      }
-
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
       const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Canvas error");
+      if (!ctx) return;
 
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      // ✅ Convert to Base64
       const base64 = canvas.toDataURL("image/jpeg", 0.8);
 
       stopCamera();
 
-      await handleUpload(base64);
+      // ✅ Send Base64 to App.tsx (API will handle Cloudinary + Grok)
+      onCapture(base64);
+
+      // ✅ Close Camera Screen
+      onClose();
     } catch (err) {
       console.log(err);
-      setError("❌ Capture failed. Please try again slowly.");
-      startCamera();
+      setError("❌ Capture failed. Please try again.");
     }
   };
 
   /* ✅ Upload from Gallery */
-  const handleGalleryUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     stopCamera();
 
     const reader = new FileReader();
-    reader.onloadend = async () => {
+
+    reader.onloadend = () => {
       const base64 = reader.result as string;
-      await handleUpload(base64);
+
+      // ✅ Send Base64 directly
+      onCapture(base64);
+
+      // ✅ Close Camera Screen
+      onClose();
     };
 
     reader.readAsDataURL(file);
@@ -117,7 +103,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-4">
-      {/* ❌ Close Button */}
+      {/* Close Button */}
       <button
         onClick={() => {
           stopCamera();
@@ -128,7 +114,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
         ✖
       </button>
 
-      {/* Error Message */}
+      {/* Error */}
       {error && (
         <p className="text-red-400 font-bold mb-4 text-center">{error}</p>
       )}
@@ -146,20 +132,19 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
 
       {/* Buttons */}
       <div className="flex flex-col gap-4 mt-6 w-full max-w-md">
-        {/* 📸 Capture Button */}
+        {/* Capture Button */}
         {cameraOn && (
           <button
             onClick={capturePhoto}
-            disabled={loading}
             className="bg-emerald-600 text-white px-8 py-4 rounded-full font-bold text-lg shadow-xl"
           >
-            {loading ? "Uploading..." : "📸 Capture & Identify"}
+            📸 Capture & Identify
           </button>
         )}
 
-        {/* 🖼 Upload from Gallery */}
+        {/* Gallery Upload */}
         <label className="bg-blue-600 text-white px-8 py-4 rounded-full font-bold text-lg shadow-xl text-center cursor-pointer">
-          {loading ? "Please wait..." : "🖼 Upload from Gallery"}
+          🖼 Upload from Gallery
           <input
             type="file"
             accept="image/*"
