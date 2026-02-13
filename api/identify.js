@@ -18,7 +18,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "No image received" });
     }
 
-    // ✅ Upload to Cloudinary
+    // ✅ Upload Image to Cloudinary
     const uploadResult = await cloudinary.uploader.upload(imageBase64, {
       folder: "flowers",
     });
@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
     console.log("✅ Uploaded:", imageUrl);
 
-    // ✅ Call Grok Vision
+    // ✅ Call Grok Vision API
     const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -40,10 +40,15 @@ export default async function handler(req, res) {
           {
             role: "user",
             content: [
-              { type: "text", text: "Identify this flower." },
+              {
+                type: "text",
+                text: "Identify this flower clearly.",
+              },
               {
                 type: "image_url",
-                image_url: { url: imageUrl },
+                image_url: {
+                  url: imageUrl,
+                },
               },
             ],
           },
@@ -55,10 +60,13 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       uploadedImage: imageUrl,
-      result: data?.choices?.[0]?.message?.content || "No result",
+      result: data?.choices?.[0]?.message?.content || "No result returned",
     });
   } catch (err) {
-    console.error("❌ API Error:", err);
-    return res.status(500).json({ error: err.message });
+    console.error("❌ Identify API Error:", err);
+
+    return res.status(500).json({
+      error: err.message || "Something went wrong",
+    });
   }
 }
